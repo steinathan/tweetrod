@@ -1,0 +1,6 @@
+{
+    "files.autoSave": "afterDelay",
+    "files.autoSaveDelay": 500,
+    "go.formatTool": "goreturns",
+    "go.useLanguageServer": true
+}
