@@ -8,6 +8,7 @@ require (
 	github.com/go-rod/bypass v0.2.4 // indirect
 	github.com/go-rod/rod v0.87.2
 	github.com/google/btree v1.0.0 // indirect
+	github.com/otiai10/gosseract/v2 v2.3.0
 	github.com/pelletier/go-toml v1.8.1 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	golang.org/x/tour v0.0.0-20201207214521-004403599411 // indirect
