@@ -12,8 +12,17 @@ import (
 
 // AnalyticsKind the structure of our analytics
 type AnalyticsKind struct {
-	Engagements int `json:"engagements"`
-	Impressions int `json:"impressions"`
+	TweetURL    string `json:"tweetURL"`
+	Username    string `json:"username"`
+	Engagements int    `json:"engagements"`
+	Impressions int    `json:"impressions"`
+}
+
+// IncomingRequestKind ...
+type IncomingRequestKind struct {
+	Username string
+	Password string
+	TweetURL string
 }
 
 // func main() {
@@ -36,7 +45,7 @@ func parseInt(s string) int {
 }
 
 // ProcessAnalytics processes the analytics from a screenshot image
-func ProcessAnalytics(image string, ch chan AnalyticsKind) {
+func ProcessAnalytics(image string, inputs IncomingRequestKind, ch chan AnalyticsKind) {
 	// ready our OCR
 	client := gosseract.NewClient()
 	defer client.Close()
@@ -64,11 +73,13 @@ func ProcessAnalytics(image string, ch chan AnalyticsKind) {
 
 	if len(impressKind) == 1 || len(engageKind) < 2 {
 		reason := fmt.Errorf("Could not get both impressions and engagements from provided shot: %v, %v", engageKind, impressKind)
-		panic(reason)
+		fmt.Println(reason)
 	}
 
 	// process the structure
 	var analytics = &AnalyticsKind{
+		TweetURL:    inputs.TweetURL,
+		Username:    inputs.Username,
 		Engagements: parseInt(engageKind[2]),
 		Impressions: parseInt(impressKind[1]),
 	}

@@ -27,19 +27,12 @@ type Analytics struct {
 	engagements string
 }
 
-// IncomingRequestKind ...
-type IncomingRequestKind struct {
-	Username string
-	Password string
-	TweetURL string
-}
-
 // BotPage ..
 type BotPage struct {
 	*rod.Page
 }
 
-func startWorker(inputs *IncomingRequestKind) util.AnalyticsKind {
+func startWorker(inputs *util.IncomingRequestKind) util.AnalyticsKind {
 
 	var result util.AnalyticsKind
 	var username, password string = inputs.Username, inputs.Password
@@ -130,17 +123,15 @@ func startWorker(inputs *IncomingRequestKind) util.AnalyticsKind {
 	}
 
 	time.Sleep(time.Second)
-
-	fmt.Println("RESULT:", result)
 	return result
 
 }
 
-func process(page *rod.Page, inputs IncomingRequestKind) util.AnalyticsKind {
+func process(page *rod.Page, inputs util.IncomingRequestKind) util.AnalyticsKind {
 	imgPath := CaptureScreenshot(page, inputs.TweetURL, inputs.Username)
 
 	var ch = make(chan util.AnalyticsKind) // AnalyticsKind
-	go util.ProcessAnalytics(imgPath, ch)
+	go util.ProcessAnalytics(imgPath, inputs, ch)
 	result := <-ch
 
 	return result
@@ -150,21 +141,25 @@ func main() {
 	app := fiber.New()
 
 	app.Get("/", func(c *fiber.Ctx) error {
-		return c.SendString("Hello, World 👋!")
+		return c.SendString("Hello Tweetrod... 👋!")
 	})
 
-	app.Post("/:username", func(c *fiber.Ctx) error {
-		var username, password, tweetURL = c.Params("username"), c.Query("password"), c.Query("tweetURL")
-		// var result util.AnalyticsKind = startWorker(&IncomingRequestKind{
-		// 	Username: username,
-		// 	Password: password,
-		// 	TweetURL: tweetURL,
-		// })
+	app.Post("/:username/:password", func(c *fiber.Ctx) error {
 
-		// data, _ := json.Marshal(result)
-		// return c.SendString(string(data))
-		msg := fmt.Sprintf("%s, %s, %s", username, password, tweetURL)
-		return c.SendString(msg)
+		var username, password, tweetURL = c.Params("username"), c.Params("password"), c.Query("tweetURL")
+
+		fmt.Println("Starting worker for:", username)
+
+		var result = startWorker(&util.IncomingRequestKind{
+			Username: username,
+			Password: password,
+			// append the analytics to the tweetTweetURL because the user ..
+			// .. won't supply it to the main server,
+			TweetURL: tweetURL + "/analytics",
+		})
+
+		data, _ := json.Marshal(result)
+		return c.SendString(string(data))
 	})
 
 	app.Listen(":3000")
