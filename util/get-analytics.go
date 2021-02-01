@@ -1,7 +1,7 @@
 package util
 
 import (
-	"encoding/json"
+	// "encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -12,19 +12,19 @@ import (
 
 // AnalyticsKind the structure of our analytics
 type AnalyticsKind struct {
-	Engagements int
-	Impressions int
+	Engagements int `json:"engagements"`
+	Impressions int `json:"impressions"`
 }
 
-func main() {
-	var ch = make(chan string) // AnalyticsKind as JSON.stringify(s)
-	var img string = "./test.png"
-	go ProcessAnalytics(img, ch)
+// func main() {
+// 	var ch = make(chan string) // AnalyticsKind as JSON.stringify(s)
+// 	var img string = "./test.png"
+// 	go ProcessAnalytics(img, ch)
 
-	result := <-ch
-	fmt.Println(result)
+// 	result := <-ch
+// 	fmt.Println(result)
 
-}
+// }
 
 // parses a string and returns the number equiv
 func parseInt(s string) int {
@@ -36,7 +36,7 @@ func parseInt(s string) int {
 }
 
 // ProcessAnalytics processes the analytics from a screenshot image
-func ProcessAnalytics(image string, ch chan string) {
+func ProcessAnalytics(image string, ch chan AnalyticsKind) {
 	// ready our OCR
 	client := gosseract.NewClient()
 	defer client.Close()
@@ -74,13 +74,13 @@ func ProcessAnalytics(image string, ch chan string) {
 	}
 
 	// convert it to json
-	res, err := json.Marshal(analytics)
-	if err != nil {
-		panic(err)
-	}
+	// res, err := json.Marshal(analytics)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
 	// send the converted json as a string to our channel
-	ch <- string(res)
+	ch <- *analytics
 
 	//:END
 }

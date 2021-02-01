@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io/ioutil"
 
 	// "fmt"
@@ -16,6 +17,8 @@ import (
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/navicstein/tweetrod/util"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 // Analytics ..
@@ -24,38 +27,30 @@ type Analytics struct {
 	engagements string
 }
 
+// IncomingRequestKind ...
+type IncomingRequestKind struct {
+	Username string
+	Password string
+	TweetURL string
+}
+
 // BotPage ..
 type BotPage struct {
 	*rod.Page
 }
 
-func startAndServe() {
-	// c := &[]proto.NetworkCookieParam{}
-	// dec := gob.NewDecoder(bytes.NewReader(userCookies))
-	// err = dec.Decode(&c)
-	// if err != nil {
-	// 	fmt.Println("User is not yet signed in:", err)
-	// }
+func startWorker(inputs *IncomingRequestKind) util.AnalyticsKind {
 
-	var username, password string
-	flag.StringVar(&username, "username", "navicstein", "your twitter username")
-	flag.StringVar(&password, "password", "842867", "your twitter password")
-	var useProxy *bool = flag.Bool("use-proxy", false, "whether to use reverse proxy at http://127.0.0.1:8080")
+	var result util.AnalyticsKind
+	var username, password string = inputs.Username, inputs.Password
 
 	flag.Parse()
 
 	util.Log("Using %v goroutings because of CPU capabilities.", runtime.NumCPU())
-	util.Log("if this program keeps failing, re-start the command until a test is passed!")
 
 	var newLauncher *launcher.Launcher = launcher.New()
 	var instance *launcher.Launcher = newLauncher.
 		Delete("use-mock-keychain") // delete flag "--use-mock-keychain"
-
-	if *useProxy {
-		var proxURL = "http://51.79.79.111:3128"
-		instance = newLauncher.Proxy(proxURL)
-		util.Log("Spawing proxy server at ", proxURL)
-	}
 
 	url := instance.MustLaunch()
 
@@ -69,53 +64,49 @@ func startAndServe() {
 		mustSeeSelectorAfterLogin = "#react-root > div > div > div.css-1dbjc4n.r-18u37iz.r-13qz1uu.r-417010 > main > div > div > div > div > div"
 	)
 
-	var twitterURL = "https://twitter.com/login?redirect_after_login="
+	var twitterURL = "https://twitter.com/login?redirect_after_login=" + inputs.TweetURL
 
-	// var baseURL = "https://twitter.com"
-	// var redirectAfterLoginURL = baseURL + "/" + username
+	var userCookiePath string = "./cookies/" + username + ".json"
 
-	var userCookiePath string = "./cookies/navicstein.json"
+	var loadedCookiesStruct []*proto.NetworkCookieParam
 
 	// read the users cookies
 	userCookies, err := ioutil.ReadFile(userCookiePath)
-	HandleError(err)
-
-	// unmarshall the cookie into the struct
-	var loadedCookiesStruct []*proto.NetworkCookieParam
-
-	if err := json.Unmarshal(userCookies, &loadedCookiesStruct); err != nil {
-		HandleError(err)
+	if err == nil {
+		// only attempt to Unmarshal cookies when there's no error
+		if err := json.Unmarshal(userCookies, &loadedCookiesStruct); err != nil {
+			HandleError(err)
+		}
 	}
 
+	// unmarshall the cookie into the struct
 	var page *rod.Page = browser.MustPage(twitterURL)
+
+	rand.Seed(time.Now().Unix())
+	availDevices := []devices.Device{
+		devices.IPhoneX,
+	}
+
+	device := availDevices[rand.Int()%len(availDevices)]
+
+	util.Log("Emulation server started with device: %v \n", device.Title)
+
+	page.MustEmulate(device)
 
 	// load the users cookies for twitter
 	if loadedCookiesStruct != nil {
 		page.SetCookies(loadedCookiesStruct)
-		var authedURL = "https://twitter.com/" + username
-		page.MustNavigate(authedURL)
+
+		// start processing after login loaded
+		result = process(page, *inputs)
+
 	} else {
 		// else just log the user in normally
-
-		rand.Seed(time.Now().Unix())
-		availDevices := []devices.Device{
-			devices.IPhoneX,
-			// devices.IPad,
-			// devices.IPadPro,
-		}
-
-		device := availDevices[rand.Int()%len(availDevices)]
-
-		util.Log("Emulation server started with device: %v \n", device.Title)
-
-		page.MustEmulate(device)
 
 		// block ads
 		proto.PageSetAdBlockingEnabled{
 			Enabled: true,
 		}.Call(page)
-
-		// page.SetCookies(dy)
 
 		// type in the username
 		page.MustElement(usernameSelector).MustInput(username)
@@ -132,27 +123,60 @@ func startAndServe() {
 
 		err = ioutil.WriteFile(userCookiePath, cookiesByte, 0644)
 		HandleError(err)
+
+		// start processing after login
+		result = process(page, *inputs)
+
 	}
-	// now, get the users analytics tweet url && take some screenshot
-	// then pass it to
-	// var ch = make(chan string)
-	// util.ProcessAnalytics(image, ch)
-	// aUxl := CaptureScreenshot(page, "https://google.com")
-	// fmt.Println(aUxl)
-	time.Sleep(time.Hour)
+
+	time.Sleep(time.Second)
+
+	fmt.Println("RESULT:", result)
+	return result
 
 }
+
+func process(page *rod.Page, inputs IncomingRequestKind) util.AnalyticsKind {
+	imgPath := CaptureScreenshot(page, inputs.TweetURL, inputs.Username)
+
+	var ch = make(chan util.AnalyticsKind) // AnalyticsKind
+	go util.ProcessAnalytics(imgPath, ch)
+	result := <-ch
+
+	return result
+}
+
 func main() {
-	// util.StartTwitterClient()
-	startAndServe()
+	app := fiber.New()
+
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.SendString("Hello, World 👋!")
+	})
+
+	app.Post("/:username", func(c *fiber.Ctx) error {
+		var username, password, tweetURL = c.Params("username"), c.Query("password"), c.Query("tweetURL")
+		// var result util.AnalyticsKind = startWorker(&IncomingRequestKind{
+		// 	Username: username,
+		// 	Password: password,
+		// 	TweetURL: tweetURL,
+		// })
+
+		// data, _ := json.Marshal(result)
+		// return c.SendString(string(data))
+		msg := fmt.Sprintf("%s, %s, %s", username, password, tweetURL)
+		return c.SendString(msg)
+	})
+
+	app.Listen(":3000")
 }
 
 // CaptureScreenshot captures screenshot and returns file path, this file page will e fed directly to ProcessAnalytics for retieving the analytics data
-func CaptureScreenshot(page *rod.Page, url string) string {
-	var imgPath = "./imd.png"
+func CaptureScreenshot(page *rod.Page, url, username string) string {
+	var imgPath = "./tmp/" + username + ".png"
 	page.MustNavigate(url)
 
 	WaitForPageLoad(page)
+	fmt.Println("Waiting for page load..")
 
 	page.MustScreenshot(imgPath)
 	return imgPath
