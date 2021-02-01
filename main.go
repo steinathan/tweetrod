@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
+	"io/ioutil"
+
 	// "fmt"
 	"math/rand"
 	"runtime"
@@ -26,7 +29,14 @@ type BotPage struct {
 	*rod.Page
 }
 
-func main() {
+func startAndServe() {
+	// c := &[]proto.NetworkCookieParam{}
+	// dec := gob.NewDecoder(bytes.NewReader(userCookies))
+	// err = dec.Decode(&c)
+	// if err != nil {
+	// 	fmt.Println("User is not yet signed in:", err)
+	// }
+
 	var username, password string
 	flag.StringVar(&username, "username", "navicstein", "your twitter username")
 	flag.StringVar(&password, "password", "842867", "your twitter password")
@@ -42,10 +52,9 @@ func main() {
 		Delete("use-mock-keychain") // delete flag "--use-mock-keychain"
 
 	if *useProxy {
-		instance = newLauncher.Proxy("127.0.0.1:8080")
-		ch := make(chan error, 0)
-		util.Log("Spawing proxy server at http://127.0.0.1:8080")
-		go RunProxy(ch)
+		var proxURL = "http://51.79.79.111:3128"
+		instance = newLauncher.Proxy(proxURL)
+		util.Log("Spawing proxy server at ", proxURL)
 	}
 
 	url := instance.MustLaunch()
@@ -55,54 +64,87 @@ func main() {
 
 	// constants that will be pushed to a config file and downloaded
 	const (
-		usernameSelector          = "#react-root > div > div > div.css-1dbjc4n.r-13qz1uu.r-417010 > main > div > div > div.css-1dbjc4n.r-13qz1uu > form > div > div:nth-child(6) > label > div > div.css-1dbjc4n.r-18u37iz.r-16y2uox.r-1wbh5a2.r-1udh08x.r-1inuy60.r-ou255f.r-vmopo1 > div > input"
-		passwordSelector          = "#react-root > div > div > div.css-1dbjc4n.r-13qz1uu.r-417010 > main > div > div > div.css-1dbjc4n.r-13qz1uu > form > div > div:nth-child(7) > label > div > div.css-1dbjc4n.r-18u37iz.r-16y2uox.r-1wbh5a2.r-1udh08x.r-1inuy60.r-ou255f.r-vmopo1 > div > input"
+		usernameSelector          = "#react-root > div > div > div.css-1dbjc4n.r-13qz1uu.r-417010 > main > div > div > div.css-1dbjc4n.r-13qz1uu > form > div > div:nth-child(6) > label > div > div.css-1dbjc4n.r-18u37iz.r-16y2uox.r-1wbh5a2.r-l71dzp.r-1udh08x.r-1inuy60.r-ou255f.r-1b9bua6 > div > input"
+		passwordSelector          = "#react-root > div > div > div.css-1dbjc4n.r-13qz1uu.r-417010 > main > div > div > div.css-1dbjc4n.r-13qz1uu > form > div > div:nth-child(7) > label > div > div.css-1dbjc4n.r-18u37iz.r-16y2uox.r-1wbh5a2.r-l71dzp.r-1udh08x.r-1inuy60.r-ou255f.r-1b9bua6 > div > input"
 		mustSeeSelectorAfterLogin = "#react-root > div > div > div.css-1dbjc4n.r-18u37iz.r-13qz1uu.r-417010 > main > div > div > div > div > div"
 	)
 
-	var twitterURL = "https://twitter.com/login?redirect_after_login=https://twitter.com/" + username
+	var twitterURL = "https://twitter.com/login?redirect_after_login="
 
 	// var baseURL = "https://twitter.com"
 	// var redirectAfterLoginURL = baseURL + "/" + username
 
-	// load the twitter login
-	page := browser.MustPage(twitterURL)
+	var userCookiePath string = "./cookies/navicstein.json"
 
-	// Won't work on the Playground since the time is frozen.
-	rand.Seed(time.Now().Unix())
-	availDevices := []devices.Device{
-		devices.IPhoneX,
-		// devices.IPad,
-		// devices.IPadPro,
+	// read the users cookies
+	userCookies, err := ioutil.ReadFile(userCookiePath)
+	HandleError(err)
+
+	// unmarshall the cookie into the struct
+	var loadedCookiesStruct []*proto.NetworkCookieParam
+
+	if err := json.Unmarshal(userCookies, &loadedCookiesStruct); err != nil {
+		HandleError(err)
 	}
 
-	device := availDevices[rand.Int()%len(availDevices)]
+	var page *rod.Page = browser.MustPage(twitterURL)
 
-	util.Log("Emulation server started with device: %v \n", device.Title)
+	// load the users cookies for twitter
+	if loadedCookiesStruct != nil {
+		page.SetCookies(loadedCookiesStruct)
+		var authedURL = "https://twitter.com/" + username
+		page.MustNavigate(authedURL)
+	} else {
+		// else just log the user in normally
 
-	page.MustEmulate(device)
+		rand.Seed(time.Now().Unix())
+		availDevices := []devices.Device{
+			devices.IPhoneX,
+			// devices.IPad,
+			// devices.IPadPro,
+		}
 
-	// block ads
-	proto.PageSetAdBlockingEnabled{
-		Enabled: true,
-	}.Call(page)
+		device := availDevices[rand.Int()%len(availDevices)]
 
-	// type in the username
-	page.MustElement(usernameSelector).MustInput(username)
+		util.Log("Emulation server started with device: %v \n", device.Title)
 
-	// type in the password & hit ENTER
-	page.MustElement(passwordSelector).MustInput(password).MustPress(input.Enter)
+		page.MustEmulate(device)
 
-	// wating for async results
-	WaitForPageLoad(page)
+		// block ads
+		proto.PageSetAdBlockingEnabled{
+			Enabled: true,
+		}.Call(page)
 
+		// page.SetCookies(dy)
+
+		// type in the username
+		page.MustElement(usernameSelector).MustInput(username)
+
+		// type in the password & hit ENTER
+		page.MustElement(passwordSelector).MustInput(password).MustPress(input.Enter)
+
+		// wating for async results
+		WaitForPageLoad(page)
+
+		cookies := page.MustCookies()
+		cookiesByte, err := json.Marshal(cookies)
+		HandleError(err)
+
+		err = ioutil.WriteFile(userCookiePath, cookiesByte, 0644)
+		HandleError(err)
+	}
 	// now, get the users analytics tweet url && take some screenshot
 	// then pass it to
 	// var ch = make(chan string)
 	// util.ProcessAnalytics(image, ch)
 	// aUxl := CaptureScreenshot(page, "https://google.com")
 	// fmt.Println(aUxl)
-	time.Sleep(time.Second)
+	time.Sleep(time.Hour)
+
+}
+func main() {
+	// util.StartTwitterClient()
+	startAndServe()
 }
 
 // CaptureScreenshot captures screenshot and returns file path, this file page will e fed directly to ProcessAnalytics for retieving the analytics data
@@ -130,4 +172,11 @@ func WaitForPageLoad(page *rod.Page) {
 	// wating for async results
 	page.WaitRequestIdle(time.Duration(time.Second), []string{}, excludes)()
 
+}
+
+// HandleError ..
+func HandleError(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
