@@ -19,7 +19,7 @@ type AnalyticsKind struct {
 	Username    string        `json:"username"`
 	Engagements int           `json:"engagements"`
 	Impressions int           `json:"impressions"`
-	CrawledAt   time.Duration `json:"crawledAt"`
+	CrawledAt   time.Time `json:"crawledAt"`
 }
 
 // RequestKind ...
@@ -59,5 +59,6 @@ func Log(format string, v ...interface{}) {
 	config.DisableCaller = true
 	config.DisableStacktrace = true
 	logger, _ := config.Build()
-	logger.Info(fmt.Sprintf(format, v...))
+	logger.Debug(fmt.Sprintf(format, v...))
+	
 }

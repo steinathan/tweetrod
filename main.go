@@ -37,5 +37,6 @@ func main() {
 		return c.SendString(string(data))
 	})
 
+	worker.Log("TweetBot is active!")
 	app.Listen(":3000")
 }

@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/otiai10/gosseract/v2"
@@ -68,25 +69,26 @@ func (w *RequestKind) ProcessAnalytics(image string, ch chan AnalyticsKind) {
 	if len(impressKind) == 1 || len(engageKind) < 2 {
 		reason := fmt.Errorf("Could not get both impressions and engagements from provided shot: %v, %v", engageKind, impressKind)
 		fmt.Println(reason)
+		ch <- AnalyticsKind{
+			IsValid:   false,
+			TweetURL:  w.TweetURL,
+			Username:  w.Username,
+			CrawledAt: time.Now(),
+		}
+	} else {
+		// process the structure
+		var analytics = &AnalyticsKind{
+			TweetURL:    w.TweetURL,
+			Username:    w.Username,
+			Engagements: parseInt(engageKind[2]),
+			Impressions: parseInt(impressKind[1]),
+			IsValid:     true,
+			CrawledAt:   time.Now(),
+		}
+
+		ch <- *analytics
+
 	}
-
-	// process the structure
-	var analytics = &AnalyticsKind{
-		TweetURL:    w.TweetURL,
-		Username:    w.Username,
-		Engagements: parseInt(engageKind[2]),
-		Impressions: parseInt(impressKind[1]),
-	}
-
-	// convert it to json
-	// res, err := json.Marshal(analytics)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// send the converted json as a string to our channel
-	ch <- *analytics
-
 	//:END
 
 }

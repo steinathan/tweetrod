@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"math/rand"
+	"os"
 	"runtime"
 	"time"
 
@@ -47,6 +48,7 @@ func (inputs *RequestKind) Bootstrap() AnalyticsKind {
 
 	// constants that will be pushed to a config file and downloaded
 	const (
+		CookieDir                 = "./cookies"
 		usernameSelector          = "#react-root > div > div > div.css-1dbjc4n.r-13qz1uu.r-417010 > main > div > div > div.css-1dbjc4n.r-13qz1uu > form > div > div:nth-child(6) > label > div > div.css-1dbjc4n.r-18u37iz.r-16y2uox.r-1wbh5a2.r-l71dzp.r-1udh08x.r-1inuy60.r-ou255f.r-1b9bua6 > div > input"
 		passwordSelector          = "#react-root > div > div > div.css-1dbjc4n.r-13qz1uu.r-417010 > main > div > div > div.css-1dbjc4n.r-13qz1uu > form > div > div:nth-child(7) > label > div > div.css-1dbjc4n.r-18u37iz.r-16y2uox.r-1wbh5a2.r-l71dzp.r-1udh08x.r-1inuy60.r-ou255f.r-1b9bua6 > div > input"
 		mustSeeSelectorAfterLogin = "#react-root > div > div > div.css-1dbjc4n.r-18u37iz.r-13qz1uu.r-417010 > main > div > div > div > div > div"
@@ -54,7 +56,7 @@ func (inputs *RequestKind) Bootstrap() AnalyticsKind {
 
 	var twitterURL = "https://twitter.com/login?redirect_after_login=" + inputs.TweetURL
 
-	var userCookiePath string = "./cookies/" + username + ".json"
+	var userCookiePath string = CookieDir + "/" + username + ".json"
 
 	var loadedCookiesStruct []*proto.NetworkCookieParam
 
@@ -77,18 +79,21 @@ func (inputs *RequestKind) Bootstrap() AnalyticsKind {
 
 	device := availDevices[rand.Int()%len(availDevices)]
 
-	Log("Emulation server started with device: %v \n", device.Title)
+	Log("Emulation server started with device: %v", device.Title)
 
 	page.MustEmulate(device)
 
 	// load the users cookies for twitter
 	if loadedCookiesStruct != nil {
+		Log("Logging with already existing cookies...")
+
 		page.SetCookies(loadedCookiesStruct)
 
 		// start processing after login loaded
 		result = process(page, *inputs)
 
 	} else {
+		Log("Logging via normal procedures...")
 		// else just log the user in normally
 
 		// block ads
@@ -108,6 +113,10 @@ func (inputs *RequestKind) Bootstrap() AnalyticsKind {
 		cookies := page.MustCookies()
 		cookiesByte, err := json.Marshal(cookies)
 		HandleError(err)
+
+		if _, err := os.Stat(CookieDir); os.IsNotExist(err) {
+			os.Mkdir(CookieDir, os.ModePerm)
+		}
 
 		err = ioutil.WriteFile(userCookiePath, cookiesByte, 0644)
 		HandleError(err)
