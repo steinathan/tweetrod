@@ -13,6 +13,8 @@ require (
 	github.com/otiai10/gosseract/v2 v2.3.1
 	github.com/pelletier/go-toml v1.8.1 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
+	github.com/sirupsen/logrus v1.7.0 // indirect
 	github.com/ysmood/leakless v0.6.12 // indirect
+	go.uber.org/zap v1.16.0
 	golang.org/x/tour v0.0.0-20201207214521-004403599411 // indirect
 )

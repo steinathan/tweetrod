@@ -1,39 +1,14 @@
-package util
+package worker
 
 import (
-	// "encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/go-rod/rod"
 	"github.com/otiai10/gosseract/v2"
 )
-
-// AnalyticsKind the structure of our analytics
-type AnalyticsKind struct {
-	TweetURL    string `json:"tweetURL"`
-	Username    string `json:"username"`
-	Engagements int    `json:"engagements"`
-	Impressions int    `json:"impressions"`
-}
-
-// IncomingRequestKind ...
-type IncomingRequestKind struct {
-	Username string
-	Password string
-	TweetURL string
-}
-
-// func main() {
-// 	var ch = make(chan string) // AnalyticsKind as JSON.stringify(s)
-// 	var img string = "./test.png"
-// 	go ProcessAnalytics(img, ch)
-
-// 	result := <-ch
-// 	fmt.Println(result)
-
-// }
 
 // parses a string and returns the number equiv
 func parseInt(s string) int {
@@ -44,8 +19,25 @@ func parseInt(s string) int {
 	return int(d)
 }
 
+// CaptureScreenshot captures screenshot and returns file path, this file page will e fed directly to ProcessAnalytics for retieving the analytics data
+func (w *RequestKind) CaptureScreenshot(page *rod.Page, url, username string) string {
+	Log("Taking snapshot...")
+
+	var imgPath = "./tmp/" + username + ".png"
+	page.MustNavigate(url)
+
+	WaitForPageLoad(page)
+
+	Log("Waiting for page to be completely loaded...")
+
+	page.MustScreenshot(imgPath)
+	return imgPath
+}
+
 // ProcessAnalytics processes the analytics from a screenshot image
-func ProcessAnalytics(image string, inputs IncomingRequestKind, ch chan AnalyticsKind) {
+func (w *RequestKind) ProcessAnalytics(image string, ch chan AnalyticsKind) {
+	Log("Loading OCR client...")
+
 	// ready our OCR
 	client := gosseract.NewClient()
 	defer client.Close()
@@ -63,6 +55,8 @@ func ProcessAnalytics(image string, inputs IncomingRequestKind, ch chan Analytic
 		return
 	}
 
+	Log("Getting impressions & engagements...")
+
 	// compiled regular expressions for use
 	var iRegex *regexp.Regexp = regexp.MustCompile("Impressions ([0-9]+)")
 	var eRegex *regexp.Regexp = regexp.MustCompile("Total engagements ([0-9]+)")
@@ -78,8 +72,8 @@ func ProcessAnalytics(image string, inputs IncomingRequestKind, ch chan Analytic
 
 	// process the structure
 	var analytics = &AnalyticsKind{
-		TweetURL:    inputs.TweetURL,
-		Username:    inputs.Username,
+		TweetURL:    w.TweetURL,
+		Username:    w.Username,
 		Engagements: parseInt(engageKind[2]),
 		Impressions: parseInt(impressKind[1]),
 	}
@@ -94,4 +88,5 @@ func ProcessAnalytics(image string, inputs IncomingRequestKind, ch chan Analytic
 	ch <- *analytics
 
 	//:END
+
 }
